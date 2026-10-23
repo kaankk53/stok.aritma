@@ -1,0 +1,15 @@
+{
+  "name": "aritma-stok-paneli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Su arıtma işletmesi için stok, barkodlu satış, kâr hesabı ve personel yönetimi paneli",
+  "scripts": {
+    "test": "node --test",
+    "dev": "netlify dev"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
