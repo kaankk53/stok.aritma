@@ -19,6 +19,7 @@ Girişler ayrıdır: yönetici hesabı personel paneline, personel hesabı yöne
 | İş maliyeti ve kârı (parça alışı + masraflar) | Görür | Görmez |
 | Stok sayımı / düzeltme (sebep zorunlu, kayıt tutulur) | Evet | Evet |
 | Alış fiyatı, marj, kâr raporları | Görür | Görmez |
+| Muhasebe: gider defteri (maaş, kira, fatura, yakıt, vergi, reklam, stok alımı), aylık ve yıllık gelir-gider-net kâr | Evet | Hayır |
 | Excel ile stok yükleme, ürün ekleme/silme | Evet | Hayır |
 | Personel ekleme, şifre sıfırlama, pasifleştirme | Evet | Hayır |
 

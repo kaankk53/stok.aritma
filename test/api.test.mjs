@@ -404,3 +404,55 @@ test('iş doğrulamaları', async () => {
   assert.equal((await o.istek('POST', `jobs/${j.id}/durum`, { durum: 'iptal' }, ta)).veri.durum, 'iptal');
   assert.equal((await o.istek('GET', 'jobs/yok', null, ta)).status, 404);
 });
+
+test('muhasebe: gider defteri ve aylık hesap', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  await o.istek('POST', 'products/import', { urunler: URUNLER }, ta);
+  await o.istek('POST', 'users', { username: 'ayse', name: 'Ayşe Yılmaz', password: 'personel123', role: 'staff' }, ta);
+  const ayse = (await o.istek('POST', 'login', { username: 'ayse', password: 'personel123' })).veri;
+  const ay = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 7);
+  const bugun = ay + '-15';
+  // personel muhasebeye erişemez
+  assert.equal((await o.istek('GET', `accounting/summary?ay=${ay}`, null, ayse.token)).status, 403);
+  assert.equal((await o.istek('POST', 'accounting/expenses', { tarih: bugun, tur: 'maas', tutar: 1 }, ayse.token)).status, 403);
+  // doğrulamalar
+  assert.equal((await o.istek('POST', 'accounting/expenses', { tarih: '15.10.2026', tur: 'maas', tutar: 100 }, ta)).status, 400);
+  assert.equal((await o.istek('POST', 'accounting/expenses', { tarih: bugun, tur: 'bilinmeyen', tutar: 100 }, ta)).status, 400);
+  assert.equal((await o.istek('POST', 'accounting/expenses', { tarih: bugun, tur: 'maas', tutar: 0 }, ta)).status, 400);
+  assert.equal((await o.istek('POST', 'accounting/expenses', { tarih: '2026-02-31', tur: 'maas', tutar: 5 }, ta)).status, 400);
+  // iş: ücret 1500, parça 2x245=490, masraf 120, tamamlandı
+  const j = (await o.istek('POST', 'jobs', { baslik: 'Kurulum', ucret: 1500, atanan: ayse.user ? ayse.user.id : undefined }, ta)).veri;
+  await o.istek('POST', `jobs/${j.id}/parts`, { barkod: '1001', adet: 2 }, ta);
+  await o.istek('POST', `jobs/${j.id}/costs`, { aciklama: 'Yol', tutar: 120, tur: 'yol' }, ta);
+  await o.istek('POST', `jobs/${j.id}/durum`, { durum: 'tamam' }, ta);
+  // satış: 1 adet 450 (alış 245)
+  await o.istek('POST', 'sales', { mod: 'perakende', satirlar: [{ barkod: '1001', adet: 1 }] }, ta);
+  // genel giderler
+  await o.istek('POST', 'accounting/expenses', { tarih: bugun, tur: 'maas', tutar: 10000, kisi: 'Ayşe Yılmaz', aciklama: 'Ay maaşı' }, ta);
+  await o.istek('POST', 'accounting/expenses', { tarih: bugun, tur: 'kira', tutar: 5000 }, ta);
+  const stok = (await o.istek('POST', 'accounting/expenses', { tarih: bugun, tur: 'stok_alim', tutar: 20000 }, ta)).veri;
+  const liste = (await o.istek('GET', `accounting/expenses?ay=${ay}`, null, ta)).veri;
+  assert.equal(liste.length, 3);
+  const h = (await o.istek('GET', `accounting/summary?ay=${ay}`, null, ta)).veri;
+  assert.equal(h.gelir.satis, 450);
+  assert.equal(h.gelir.is, 1500);
+  assert.equal(h.gelir.toplam, 1950);
+  assert.equal(h.gider.urun, 245);
+  assert.equal(h.gider.isParca, 490);
+  assert.equal(h.gider.isMasraf, 120);
+  assert.equal(h.gider.genelToplam, 15000);
+  assert.equal(h.gider.genel.maas, 10000);
+  assert.equal(h.stokAlim, 20000);               // kâra dahil değil
+  assert.equal(h.gider.toplam, 245 + 490 + 120 + 15000);
+  assert.equal(h.net, 1950 - 15855);
+  assert.equal(h.maasKisi['Ayşe Yılmaz'], 10000);
+  // yıllık tablo 12 ay döner
+  const yil = (await o.istek('GET', `accounting/year?yil=${ay.slice(0, 4)}`, null, ta)).veri;
+  assert.equal(yil.length, 12);
+  assert.equal(yil.find((x) => x.ay === ay).net, h.net);
+  // silme
+  assert.equal((await o.istek('DELETE', `accounting/expenses/${stok.id}?ay=${ay}`, null, ta)).status, 200);
+  assert.equal((await o.istek('GET', `accounting/summary?ay=${ay}`, null, ta)).veri.stokAlim, 0);
+  assert.equal((await o.istek('GET', 'accounting/summary?ay=bozuk', null, ta)).status, 400);
+});

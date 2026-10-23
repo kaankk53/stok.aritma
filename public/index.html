@@ -80,6 +80,9 @@
           <button data-act="is-sek" data-s="yapilacak" aria-pressed="true">Yapılacak</button>
           <button data-act="is-sek" data-s="tamam" aria-pressed="false">Yaptığım işler</button>
         </div>
+        <label class="f" id="isAyKutu" hidden style="margin:0"><span class="sr" style="position:absolute;left:-9999px">Ay</span>
+          <select id="isAy" aria-label="Ay"></select>
+        </label>
         <button class="btn" data-act="yenile">Yenile</button>
       </div>
     </div>
@@ -236,7 +239,9 @@
 const { $, $$, esc, fmt, nn, low, tarihSaat, tarih, bugun, parseNum, toast, TUR, MASRAF, durumPill, oncelikPill, terminPill, acikMi, gecikmis, secenek } = AS;
 
 let ME=null, URUNLER=[], JOBS=[], HAREKET=[];
-let seciliIs=null, isSek='yapilacak', sayimBarkod=null;
+let seciliIs=null, isSek='yapilacak', sayimBarkod=null, isAy=new Date().getMonth();
+const AYLAR=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+function ayYili(m){const n=new Date();return m<=n.getMonth()?n.getFullYear():n.getFullYear()-1;}
 const api=AS.createApi('aritma-token-personel',()=>girisGoster());
 const bul=b=>URUNLER.find(u=>u.barkod===b);
 const isBul=id=>JOBS.find(j=>j.id===id);
@@ -297,24 +302,34 @@ function git(tab){
 function ayBasi(){const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).getTime();}
 function renderIsler(){
   const acik=JOBS.filter(acikMi);
-  const bitenAy=JOBS.filter(j=>j.durum==='tamam'&&j.bitis&&new Date(j.bitis).getTime()>=ayBasi()).length;
+  const bitenAyL=JOBS.filter(j=>j.durum==='tamam'&&j.bitis&&new Date(j.bitis).getTime()>=ayBasi());
+  const bitenAy=bitenAyL.length, bitenAyTutar=bitenAyL.reduce((a,j)=>a+(j.ucret||0),0);
   const gec=acik.filter(gecikmis).length, acil=acik.filter(j=>j.oncelik==='acil').length;
   $('#isOzet').innerHTML=
     `<div class="stat"><b>${acik.length}</b><span>Yapılacak iş</span></div>`+
     `<div class="stat"><b class="${acil?'neg':''}">${acil}</b><span>Acil</span></div>`+
     `<div class="stat"><b class="${gec?'neg':''}">${gec}</b><span>Süresi geçmiş</span></div>`+
-    `<div class="stat"><b>${bitenAy}</b><span>Bu ay tamamladığım</span></div>`;
+    `<div class="stat" data-act="bu-ay" role="button" tabindex="0" style="cursor:pointer" title="Bu ay yaptığım işleri göster"><b>${bitenAy}</b><span>Bu ay tamamladığım ›</span></div>`+
+    `<div class="stat"><b>${fmt(bitenAyTutar)}</b><span>Bu ay tamamladığım işlerin tutarı</span></div>`;
   $$('#isSeg [data-s]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===isSek)));
   let l;
-  if(isSek==='tamam') l=JOBS.filter(j=>j.durum==='tamam'||j.durum==='iptal').sort((a,b)=>(b.bitis||'').localeCompare(a.bitis||'')||b.no-a.no);
+  const ayKutu=$('#isAyKutu'); ayKutu.hidden=isSek!=='tamam';
+  $('#isAy').innerHTML=AYLAR.map((a,i)=>`<option value="${i}"${i===isAy?' selected':''}>${a}</option>`).join('');
+  let ayOzet='';
+  if(isSek==='tamam'){
+    const yil=ayYili(isAy);
+    l=JOBS.filter(j=>{if(j.durum!=='tamam'||!j.bitis)return false;const d=new Date(j.bitis);return d.getMonth()===isAy&&d.getFullYear()===yil;}).sort((a,b)=>b.bitis.localeCompare(a.bitis)||b.no-a.no);
+    ayOzet=`<div class="card" style="grid-column:1/-1"><strong>${AYLAR[isAy]}</strong> ayında <strong>${l.length}</strong> iş tamamladınız · toplam iş tutarı <strong>${fmt(l.reduce((a,j)=>a+(j.ucret||0),0))}</strong></div>`;
+  }
   else l=acik.sort((a,b)=>(b.oncelik==='acil')-(a.oncelik==='acil')||(a.termin||'9999').localeCompare(b.termin||'9999')||a.no-b.no);
-  $('#isKartlar').innerHTML=l.length?l.map(j=>
+  $('#isKartlar').innerHTML=ayOzet+(l.length?l.map(j=>
     `<button class="job${j.oncelik==='acil'?' acil':''}" data-act="is-ac" data-id="${esc(j.id)}">`+
       `<span class="t">#${j.no} · ${esc(j.baslik)}</span>`+
       `<span class="muted">${esc(j.musteri||'Müşteri belirtilmemiş')}${j.adres?' · '+esc(j.adres):''}</span>`+
       `<span class="m">${durumPill(j.durum)}${oncelikPill(j.oncelik)}${terminPill(j)}<span class="pill neutral">${esc(TUR[j.tur]||j.tur)}</span></span>`+
+      (j.ucret>0?`<span class="muted">İş tutarı: <strong>${fmt(j.ucret)}</strong></span>`:'')+
     `</button>`
-  ).join(''):`<div class="card empty" style="grid-column:1/-1">${isSek==='tamam'?'Henüz tamamlanan iş yok.':'Şu an size atanmış açık iş yok.'}</div>`;
+  ).join(''):`<div class="card empty" style="grid-column:1/-1">${isSek==='tamam'?AYLAR[isAy]+' ayında tamamlanan iş yok.':'Şu an size atanmış açık iş yok.'}</div>`);
   if(seciliIs) isDetayCiz();
 }
 function isDetayAc(id){seciliIs=id;$('#isListe').hidden=true;isDetayCiz();window.scrollTo(0,0);}
@@ -463,6 +478,7 @@ document.addEventListener('click',async e=>{
   }
   else if(act==='yenile'){try{await isleriYenile();await urunleriYenile();renderIsler();toast('Liste güncellendi');}catch(x){toast(x.message,'bad');}}
   else if(act==='is-sek'){isSek=a.dataset.s;renderIsler();}
+  else if(act==='bu-ay'){isSek='tamam';isAy=new Date().getMonth();if(seciliIs){seciliIs=null;$('#isDetay').hidden=true;$('#isListe').hidden=false;}renderIsler();}
   else if(act==='is-ac') isDetayAc(id);
   else if(act==='is-geri') isDetayKapat();
   else if(act==='is-durum'){
@@ -498,7 +514,8 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const t=e.target;
-  if(t.id==='sadeceKritik') renderStokTablo();
+  if(t.id==='isAy'){isAy=parseInt(t.value,10);renderIsler();}
+  else if(t.id==='sadeceKritik') renderStokTablo();
   else if(t.id==='malDonem') renderMaliyet();
 });
 $('#stokAra').addEventListener('keydown',e=>{
