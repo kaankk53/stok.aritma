@@ -13,6 +13,9 @@ function yeniOrtam(ek = {}) {
     env: { JWT_SECRET: 'x'.repeat(32), ADMIN_PASSWORD: 'Yonetici123!', ...ek }
   });
   const istek = async (yontem, yol, govde, token) => {
+    if (yol === 'login' && govde && govde.panel === undefined) {
+      govde = { ...govde, panel: govde.username === 'admin' ? 'admin' : 'staff' };
+    }
     const r = await handler(new Request('http://test/api/' + yol, {
       method: yontem,
       headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
@@ -228,4 +231,176 @@ test('bozuk token reddedilir', async () => {
   const o = yeniOrtam();
   assert.equal((await o.istek('GET', 'me', null, 'abc.def')).status, 401);
   assert.equal((await o.istek('GET', 'me', null, 'x')).status, 401);
+});
+
+/* ---------- ayrı paneller, işler, stok sayımı ---------- */
+async function personelHazirla(o, ta, kadi = 'ayse', ad = 'Ayşe Yılmaz') {
+  const k = (await o.istek('POST', 'users', { username: kadi, name: ad, password: 'personel123' }, ta)).veri;
+  const t = (await o.istek('POST', 'login', { username: kadi, password: 'personel123' })).veri.token;
+  return { id: k.id, token: t };
+}
+
+test('paneller ayrı: personel yönetici girişinden, yönetici personel girişinden giremez', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  await personelHazirla(o, ta);
+  let r = await o.istek('POST', 'login', { username: 'ayse', password: 'personel123', panel: 'admin' });
+  assert.equal(r.status, 403);
+  assert.equal(r.veri.token, undefined);
+  r = await o.istek('POST', 'login', { username: 'admin', password: 'Yonetici123!', panel: 'staff' });
+  assert.equal(r.status, 403);
+  assert.equal(r.veri.token, undefined);
+  r = await o.istek('POST', 'login', { username: 'ayse', password: 'yanlis', panel: 'admin' });
+  assert.equal(r.status, 401);
+  assert.equal((await o.istek('POST', 'login', { username: 'ayse', password: 'personel123', panel: 'x' })).status, 400);
+});
+
+test('iş oluşturma, atama ve yetki sınırları', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  const ayse = await personelHazirla(o, ta, 'ayse', 'Ayşe');
+  const veli = await personelHazirla(o, ta, 'veli', 'Veli');
+
+  assert.equal((await o.istek('POST', 'jobs', { baslik: 'x' }, ayse.token)).status, 403);
+  assert.equal((await o.istek('POST', 'jobs', { baslik: '' }, ta)).status, 400);
+  assert.equal((await o.istek('POST', 'jobs', { baslik: 'Filtre değişimi', atanan: 'yok' }, ta)).status, 400);
+
+  const j1 = (await o.istek('POST', 'jobs', { baslik: 'Filtre değişimi', tur: 'filtre', musteri: 'Kaya Ltd.', termin: '2026-11-01', ucret: 900, atanan: ayse.id, oncelik: 'acil' }, ta)).veri;
+  const j2 = (await o.istek('POST', 'jobs', { baslik: 'Kurulum', tur: 'kurulum', atanan: veli.id }, ta)).veri;
+  assert.equal(j1.no, 1);
+  assert.equal(j2.no, 2);
+  assert.equal(j1.atananAd, 'Ayşe');
+  assert.equal(j1.durum, 'bekliyor');
+
+  const aysenin = (await o.istek('GET', 'jobs', null, ayse.token)).veri;
+  assert.equal(aysenin.length, 1);
+  assert.equal(aysenin[0].baslik, 'Filtre değişimi');
+  assert.equal((await o.istek('GET', 'jobs', null, ta)).veri.length, 2);
+  assert.equal((await o.istek('GET', 'jobs?atanan=' + veli.id, null, ta)).veri.length, 1);
+
+  // başkasının işine dokunamaz
+  assert.equal((await o.istek('GET', 'jobs/' + j2.id, null, ayse.token)).status, 404);
+  assert.equal((await o.istek('POST', `jobs/${j2.id}/durum`, { durum: 'devam' }, ayse.token)).status, 404);
+  assert.equal((await o.istek('PUT', 'jobs/' + j1.id, { baslik: 'Hack' }, ayse.token)).status, 403);
+  assert.equal((await o.istek('DELETE', 'jobs/' + j1.id, null, ayse.token)).status, 403);
+
+  // yönetici yeniden atar
+  const g = await o.istek('PUT', 'jobs/' + j1.id, { atanan: veli.id, ucret: 950 }, ta);
+  assert.equal(g.veri.atananAd, 'Veli');
+  assert.equal(g.veri.ucret, 950);
+  assert.equal((await o.istek('GET', 'jobs', null, ayse.token)).veri.length, 0);
+  assert.equal((await o.istek('DELETE', 'jobs/' + j2.id, null, ta)).status, 200);
+});
+
+test('iş akışı: başla, parça kullan (stok düşer), masraf, tamamla; personel maliyeti görmez', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  await o.istek('POST', 'products/import', { urunler: URUNLER }, ta);
+  const ayse = await personelHazirla(o, ta, 'ayse', 'Ayşe');
+  const j = (await o.istek('POST', 'jobs', { baslik: 'Membran değişimi', ucret: 1000, atanan: ayse.id }, ta)).veri;
+  const yol = (s) => `jobs/${j.id}/${s}`;
+
+  // personel yalnızca devam/tamam yapabilir
+  assert.equal((await o.istek('POST', yol('durum'), { durum: 'iptal' }, ayse.token)).status, 403);
+  assert.equal((await o.istek('POST', yol('durum'), { durum: 'bekliyor' }, ayse.token)).status, 403);
+  const basla = await o.istek('POST', yol('durum'), { durum: 'devam' }, ayse.token);
+  assert.equal(basla.veri.durum, 'devam');
+  assert.ok(basla.veri.baslama);
+
+  // parça: stok düşer, personel alış fiyatını görmez
+  let p = await o.istek('POST', yol('parts'), { barkod: '1001', adet: 2 }, ayse.token);
+  assert.equal(p.status, 201);
+  assert.equal(JSON.stringify(p.veri).includes('"alis"'), false);
+  assert.equal(JSON.stringify(p.veri).includes('ozet'), false);
+  assert.equal((await o.istek('POST', yol('parts'), { barkod: '1001', adet: 999 }, ayse.token)).status, 409);
+  assert.equal((await o.istek('POST', yol('parts'), { barkod: 'yok', adet: 1 }, ayse.token)).status, 404);
+  let stok = (await o.istek('GET', 'products', null, ta)).veri.find((u) => u.barkod === '1001').stok;
+  assert.equal(stok, 38);
+
+  // masraf
+  assert.equal((await o.istek('POST', yol('costs'), { aciklama: 'Yol', tutar: 0 }, ayse.token)).status, 400);
+  const m = await o.istek('POST', yol('costs'), { aciklama: 'Yol ve yakıt', tutar: 120, tur: 'yol' }, ayse.token);
+  assert.equal(m.status, 201);
+  assert.equal(m.veri.masraflar[0].tutar, 120);
+
+  // not
+  assert.equal((await o.istek('POST', yol('notes'), { metin: 'Müşteri evde değildi' }, ayse.token)).status, 201);
+  assert.equal((await o.istek('POST', yol('notes'), { metin: ' ' }, ayse.token)).status, 400);
+
+  // yönetici maliyet ve kârı görür: 2 x 245 + 120 = 610, kâr 390
+  const yon = (await o.istek('GET', 'jobs/' + j.id, null, ta)).veri;
+  assert.deepEqual(yon.ozet, { parca: 490, masraf: 120, maliyet: 610, kar: 390 });
+  assert.equal(yon.parcalar[0].alis, 245);
+
+  // tamamla; sonra personel değişiklik yapamaz
+  const tamam = await o.istek('POST', yol('durum'), { durum: 'tamam' }, ayse.token);
+  assert.equal(tamam.veri.durum, 'tamam');
+  assert.ok(tamam.veri.bitis);
+  assert.equal((await o.istek('POST', yol('parts'), { barkod: '1002', adet: 1 }, ayse.token)).status, 403);
+  assert.equal((await o.istek('POST', yol('costs'), { aciklama: 'Ek', tutar: 5 }, ayse.token)).status, 403);
+  // yeniden açar
+  assert.equal((await o.istek('POST', yol('durum'), { durum: 'devam' }, ayse.token)).veri.durum, 'devam');
+
+  // parçayı kaldırınca stok geri gelir
+  const parcaId = yon.parcalar[0].id;
+  const sil = await o.istek('DELETE', yol('parts/' + parcaId), null, ayse.token);
+  assert.equal(sil.status, 200);
+  stok = (await o.istek('GET', 'products', null, ta)).veri.find((u) => u.barkod === '1001').stok;
+  assert.equal(stok, 40);
+  // masraf silme: yalnızca kendi kaydı
+  const masrafId = (await o.istek('GET', 'jobs/' + j.id, null, ta)).veri.masraflar[0].id;
+  assert.equal((await o.istek('DELETE', yol('costs/' + masrafId), null, ayse.token)).status, 200);
+});
+
+test('personel başkasının eklediği parça/masrafı silemez', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  await o.istek('POST', 'products/import', { urunler: URUNLER }, ta);
+  const ayse = await personelHazirla(o, ta, 'ayse', 'Ayşe');
+  const j = (await o.istek('POST', 'jobs', { baslik: 'İş', atanan: ayse.id }, ta)).veri;
+  const yonParca = (await o.istek('POST', `jobs/${j.id}/parts`, { barkod: '1002', adet: 1 }, ta)).veri.parcalar[0];
+  const yonMasraf = (await o.istek('POST', `jobs/${j.id}/costs`, { aciklama: 'Yönetici masrafı', tutar: 10 }, ta)).veri.masraflar[0];
+  assert.equal((await o.istek('DELETE', `jobs/${j.id}/parts/${yonParca.id}`, null, ayse.token)).status, 403);
+  assert.equal((await o.istek('DELETE', `jobs/${j.id}/costs/${yonMasraf.id}`, null, ayse.token)).status, 403);
+});
+
+test('stok sayımı: personel düzeltir, neden zorunlu, hareket kaydı tutulur', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  await o.istek('POST', 'products/import', { urunler: URUNLER }, ta);
+  const ayse = await personelHazirla(o, ta, 'ayse', 'Ayşe');
+  const yol = 'products/1001/sayim';
+  assert.equal((await o.istek('POST', yol, { yeni: 35 }, ayse.token)).status, 400);
+  assert.equal((await o.istek('POST', yol, { yeni: -1, neden: 'Sayım farkı' }, ayse.token)).status, 400);
+  assert.equal((await o.istek('POST', yol, { yeni: 40, neden: 'Sayım farkı' }, ayse.token)).status, 400);
+  assert.equal((await o.istek('POST', 'products/yok/sayim', { yeni: 5, neden: 'Sayım farkı' }, ayse.token)).status, 404);
+  const r = await o.istek('POST', yol, { yeni: 35, neden: 'Sayım farkı' }, ayse.token);
+  assert.equal(r.status, 200);
+  assert.equal(r.veri.stok, 35);
+  assert.equal(JSON.stringify(r.veri).includes('alis'), false);
+
+  const kendi = (await o.istek('GET', 'stock-moves', null, ayse.token)).veri;
+  assert.equal(kendi.length, 1);
+  assert.equal(kendi[0].fark, -5);
+  assert.equal(kendi[0].user.name, 'Ayşe');
+  // yönetici tüm hareketleri görür; ürün düzenlemesi de kayıt bırakır
+  await o.istek('PUT', 'products/1001', { stok: 50 }, ta);
+  const hepsi = (await o.istek('GET', 'stock-moves', null, ta)).veri;
+  assert.equal(hepsi.length, 2);
+  assert.equal(hepsi[0].tur, 'duzeltme');
+  // personel başkasının hareketini görmez
+  assert.equal((await o.istek('GET', 'stock-moves', null, ayse.token)).veri.length, 1);
+  assert.equal((await o.istek('GET', 'stock-moves?barkod=1002', null, ta)).veri.length, 0);
+});
+
+test('iş doğrulamaları', async () => {
+  const o = yeniOrtam();
+  const ta = await adminGiris(o);
+  assert.equal((await o.istek('POST', 'jobs', { baslik: 'A', termin: '01.11.2026' }, ta)).status, 400);
+  const j = (await o.istek('POST', 'jobs', { baslik: 'A', tur: 'bilinmeyen', oncelik: 'x' }, ta)).veri;
+  assert.equal(j.tur, 'servis');
+  assert.equal(j.oncelik, 'normal');
+  assert.equal((await o.istek('POST', `jobs/${j.id}/durum`, { durum: 'bozuk' }, ta)).status, 400);
+  assert.equal((await o.istek('POST', `jobs/${j.id}/durum`, { durum: 'iptal' }, ta)).veri.durum, 'iptal');
+  assert.equal((await o.istek('GET', 'jobs/yok', null, ta)).status, 404);
 });

@@ -3,14 +3,23 @@
 Su arıtma işletmesi için stok yönetimi, barkodlu toptan/perakende satış, kâr hesabı ve personel yönetimi paneli.
 Netlify üzerinde çalışır; ek bir veritabanı hesabı gerekmez (veriler Netlify Blobs'ta tutulur).
 
-## Roller
+## İki ayrı panel
+
+| Adres | Kim girer | Ne yapar |
+|---|---|---|
+| `/` | Personel | İşlerim (yapılacak / yaptığım işler), masraf girişi, stok sayımı ve düzeltme, barkodlu satış |
+| `/admin` | Yönetici | Her şey: özet, stok + Excel yükleme, satış, iş dağılımı, kâr hesabı, pazaryerleri, personel yönetimi |
+
+Girişler ayrıdır: yönetici hesabı personel paneline, personel hesabı yönetici paneline giremez.
 
 | | Yönetici | Personel |
 |---|---|---|
-| Stok listesi | Alış fiyatı ve marjla birlikte | Alış fiyatı olmadan |
-| Barkodlu satış | Evet (kâr görünür) | Evet (maliyet ve kâr görünmez) |
-| Excel ile stok yükleme, ürün ekleme/düzenleme | Evet | Hayır |
-| Kâr hesabı ve satış raporları | Evet | Hayır |
+| İş oluşturma, personele atama, silme | Evet | Hayır |
+| Kendine atanan işi başlatma / tamamlama, not, parça, masraf ekleme | Evet | Evet (tamamlanan işte parça/masraf değişmez) |
+| İş maliyeti ve kârı (parça alışı + masraflar) | Görür | Görmez |
+| Stok sayımı / düzeltme (sebep zorunlu, kayıt tutulur) | Evet | Evet |
+| Alış fiyatı, marj, kâr raporları | Görür | Görmez |
+| Excel ile stok yükleme, ürün ekleme/silme | Evet | Hayır |
 | Personel ekleme, şifre sıfırlama, pasifleştirme | Evet | Hayır |
 
 Maliyet verisi personele hiç gönderilmez; gizleme sunucuda yapılır, yalnızca ekranda saklanmaz.
@@ -50,8 +59,8 @@ Rastgele `JWT_SECRET` üretmek için: `node -e "console.log(require('crypto').ra
 
 ### 3. İlk giriş
 
-Site açılınca kullanıcı adı `admin` (veya `ADMIN_USERNAME`) ve `ADMIN_PASSWORD` ile giriş yapın. İlk girişte yönetici hesabı veritabanına yazılır.
-Sonra **Personel** sekmesinden personelinizi ekleyin. Giriş yaptıktan sonra `ADMIN_PASSWORD` değişkenini Netlify'dan silebilirsiniz; hesap zaten oluşmuştur ve şifresini panelden değiştirebilirsiniz.
+`https://siteniz.netlify.app/admin` adresinden kullanıcı adı `admin` (veya `ADMIN_USERNAME`) ve `ADMIN_PASSWORD` ile giriş yapın. İlk girişte yönetici hesabı veritabanına yazılır.
+Sonra **Personel** sekmesinden (yönetici panelinde) personelinizi ekleyin. Giriş yaptıktan sonra `ADMIN_PASSWORD` değişkenini Netlify'dan silebilirsiniz; hesap zaten oluşmuştur ve şifresini panelden değiştirebilirsiniz.
 
 ### 4. Stoğu yükleyin
 
@@ -76,7 +85,9 @@ ADMIN_PASSWORD=gecici-bir-sifre
 ## Dosya yapısı
 
 ```
-public/index.html            Arayüz (giriş, stok, satış, kâr, pazaryeri, personel)
+public/index.html            Personel paneli (/)
+public/admin/index.html      Yönetici paneli (/admin)
+public/assets/               Ortak stil ve ortak JS (barkodlu satış modülü)
 netlify/functions/api.mjs    Netlify fonksiyonu, depolamayı Netlify Blobs'a bağlar
 lib/handler.mjs              Tüm sunucu mantığı: giriş, roller, ürün, satış, ayarlar
 test/api.test.mjs            Sunucu testleri
@@ -87,6 +98,7 @@ netlify.toml                 Netlify ayarları
 
 - **Pazaryeri entegrasyonu henüz taslak.** Pazaryerleri sekmesi komisyon oranlarını kâr hesabına işler, ancak Trendyol, Hepsiburada gibi sitelere gerçek bağlantı kurmaz. Bu, ayrı bir geliştirme gerektirir (sunucuda pazaryeri API'lerini çağıran fonksiyonlar).
 - **Ölçek.** Küçük bir işletme için (birkaç personel, birkaç bin ürün) tasarlandı. İki kişi aynı anda satış yaparsa nadiren stok yazımları çakışabilir. Yoğun kullanımda gerçek bir veritabanına (ör. Supabase) geçmek gerekir.
+- **Stok yüklemesi** (Excel) stok hareketleri kaydına yazılmaz; sayım, düzeltme ve işte kullanılan parçalar yazılır.
 - **Yedek yok.** Veriler yalnızca Netlify Blobs'ta durur. Ürünleri Excel'den yeniden yükleyebilirsiniz, ancak satış geçmişi için bir yedek özelliği henüz yok.
 - **Giriş güvenliği.** Şifreler scrypt ile saklanır, oturum 12 saat geçerlidir, hatalı girişlerde yarım saniye bekletilir. Giriş denemesi sınırlaması (kilitleme) yoktur; güçlü şifreler kullanın.
 - Excel okuma kütüphanesi ve yazı tipleri internetten (CDN) yüklenir.
