@@ -20,6 +20,8 @@ Girişler ayrıdır: yönetici hesabı personel paneline, personel hesabı yöne
 | Stok sayımı / düzeltme (sebep zorunlu, kayıt tutulur) | Evet | Evet |
 | Alış fiyatı, marj, kâr raporları | Görür | Görmez |
 | Muhasebe: gider defteri (maaş, kira, fatura, yakıt, vergi, reklam, stok alımı), aylık ve yıllık gelir-gider-net kâr | Evet | Hayır |
+| Cari hesaplar, kasa/banka, tahsilat-ödeme, fatura ve irsaliye, fiyat listeleri | Evet | Hayır |
+| Yedekleme (otomatik günlük + elle indirme) | Evet | Hayır |
 | Excel ile stok yükleme, ürün ekleme/silme | Evet | Hayır |
 | Personel ekleme, şifre sıfırlama, pasifleştirme | Evet | Hayır |
 
@@ -90,10 +92,21 @@ public/index.html            Personel paneli (/)
 public/admin/index.html      Yönetici paneli (/admin)
 public/assets/               Ortak stil ve ortak JS (barkodlu satış modülü)
 netlify/functions/api.mjs    Netlify fonksiyonu, depolamayı Netlify Blobs'a bağlar
+netlify/functions/yedek.mjs  Her gün 04:00'te (TR) otomatik yedek alır
+lib/finans.mjs               Cari, kasa/banka, fatura, fiyat listesi, yedek mantığı
+public/assets/finans.js      Yönetici panelindeki finans ekranları
 lib/handler.mjs              Tüm sunucu mantığı: giriş, roller, ürün, satış, ayarlar
 test/api.test.mjs            Sunucu testleri
 netlify.toml                 Netlify ayarları
 ```
+
+## Finans (Muhasebe sekmesi)
+
+- **Cari hesaplar:** müşteri ve tedarikçi. Bakiye artı ise alacağınız, eksi ise borcunuzdur. Ekstre yazdırılabilir.
+- **Kasa ve banka:** hesaplar, tahsilat/ödeme, hesaplar arası transfer, bakiye düzeltme. Giderler ve barkodlu satışlar da isteğe bağlı olarak bir hesaba işlenir.
+- **Fatura ve irsaliye:** satış, alış ve irsaliye. Stok otomatik düşer veya artar, iptalde geri gelir. Bunlar sistem içi kayıtlardır, resmi e-fatura yerine geçmez.
+- **Fiyat listeleri:** cariye bağlanır, fatura keserken fiyatlar otomatik gelir.
+- **Yedekleme:** günlük otomatik yedek (son 14) ve elle JSON indirme. Şifre özetleri yedeğe girmez.
 
 ## Bilmeniz gerekenler
 
@@ -103,3 +116,11 @@ netlify.toml                 Netlify ayarları
 - **Yedek yok.** Veriler yalnızca Netlify Blobs'ta durur. Ürünleri Excel'den yeniden yükleyebilirsiniz, ancak satış geçmişi için bir yedek özelliği henüz yok.
 - **Giriş güvenliği.** Şifreler scrypt ile saklanır, oturum 12 saat geçerlidir, hatalı girişlerde yarım saniye bekletilir. Giriş denemesi sınırlaması (kilitleme) yoktur; güçlü şifreler kullanın.
 - Excel okuma kütüphanesi ve yazı tipleri internetten (CDN) yüklenir.
+
+## Özet ekranı, Siparişler, müşteri detayı (güncelleme)
+
+- **Özet**: üstte bugünkü ciro, bu ay net kâr, servis cirosu, e-ticaret geliri; altında bekleyen iş, bekleyen sipariş, acil iş, süresi geçen iş, kritik stok, geciken müşteri ödemesi, geciken ödeme ve toplam alacak. Kutulara tıklayınca ilgili ekrana gidilir.
+- **Siparişler** (yönetici): pazaryeri/web siparişi elle girilir. *Kargoya verildi* veya *Teslim edildi* olunca stoktan düşer ve ciroya işlenir; iptal edilirse geri alınır.
+- **Cariler → Detay**: müşterinin aldığı ürünler, alışveriş geçmişi, ödenmemiş faturalar, vadesi geçen tutar. Buradan *Satış yap* (iskonto ve vade otomatik dolar) ve *Tahsilat* yapılır.
+- **Vade**: cariye "Vade (gün)" tanımlanır. Vadesi olan faturalar, vade tarihi geçince "geciken" sayılır. Tahsilatlar en eski faturadan başlayarak düşer. Vadesiz fatura gecikmiş sayılmaz.
+- **Kâr hesabı → Pazaryeri karşılaştırma**: seçili ürün için tüm kanalları yan yana, başabaş fiyat ve hedef marj için gereken fiyatla gösterir.

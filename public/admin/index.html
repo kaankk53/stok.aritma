@@ -47,6 +47,7 @@
       <button class="tab" role="tab" data-tab="ozet" aria-selected="true">Özet</button>
       <button class="tab" role="tab" data-tab="stok" aria-selected="false">Stok</button>
       <button class="tab" role="tab" data-tab="satis" aria-selected="false">Satış ve barkod</button>
+      <button class="tab" role="tab" data-tab="siparis" aria-selected="false">Siparişler</button>
       <button class="tab" role="tab" data-tab="isler" aria-selected="false">İşler</button>
       <button class="tab" role="tab" data-tab="muhasebe" aria-selected="false">Muhasebe</button>
       <button class="tab" role="tab" data-tab="kar" aria-selected="false">Kâr hesabı</button>
@@ -70,7 +71,9 @@
 
 <!-- ÖZET -->
 <section class="panel" id="p-ozet">
-  <div class="stats" id="ozetStat"></div>
+  <div class="kpis" id="ozetKpi"></div>
+  <div class="sec-t">Takip edilmesi gerekenler</div>
+  <div class="alerts" id="ozetUyari"></div>
   <div class="grid2">
     <div class="card">
       <div class="head"><h2>Dikkat gerektiren işler</h2><button class="btn sm" data-tab="isler">Tüm işler</button></div>
@@ -79,6 +82,16 @@
     <div class="card">
       <div class="head"><h2>Kritik stok</h2><button class="btn sm" data-tab="stok">Stoğa git</button></div>
       <ul class="last" id="ozetStok"></ul>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="head"><h2>Geciken müşteri ödemeleri</h2><button class="btn sm" data-go="muhasebe:cari">Cariler</button></div>
+      <div class="tw"><table><thead><tr><th>Müşteri</th><th>Belge</th><th class="num">Gecikme</th><th class="num">Kalan</th></tr></thead><tbody id="ozetGecikenT"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="head"><h2>Geciken ödemelerimiz</h2><button class="btn sm" data-go="muhasebe:cari">Cariler</button></div>
+      <div class="tw"><table><thead><tr><th>Tedarikçi</th><th>Belge</th><th class="num">Gecikme</th><th class="num">Kalan</th></tr></thead><tbody id="ozetGecikenO"></tbody></table></div>
     </div>
   </div>
   <div class="card">
@@ -198,6 +211,9 @@
   </div>
 </section>
 
+<!-- SİPARİŞLER -->
+<section class="panel" id="p-siparis" hidden><div id="sip-kok" class="panel"></div></section>
+
 <!-- İŞLER -->
 <section class="panel" id="p-isler" hidden>
   <div id="isListe" class="panel">
@@ -254,6 +270,16 @@
 
 <!-- MUHASEBE -->
 <section class="panel" id="p-muhasebe" hidden>
+  <div class="seg" id="muNav" role="group" aria-label="Muhasebe bölümleri" style="justify-self:start;flex-wrap:wrap">
+    <button data-musub="gelir" aria-pressed="true">Gelir ve gider</button>
+    <button data-musub="cari" aria-pressed="false">Cari hesaplar</button>
+    <button data-musub="hesap" aria-pressed="false">Kasa ve banka</button>
+    <button data-musub="belge" aria-pressed="false">Fatura ve irsaliye</button>
+    <button data-musub="liste" aria-pressed="false">Fiyat listeleri</button>
+    <button data-musub="yedek" aria-pressed="false">Yedekleme</button>
+  </div>
+  <div id="mu-fin" class="panel" hidden></div>
+  <div id="mu-gelir" class="panel">
   <div class="card">
     <div class="head">
       <div><h2>Gelir ve gider</h2><p class="sub">Satışlar, işler, parça maliyetleri, maaşlar ve diğer giderler tek yerde.</p></div>
@@ -279,6 +305,7 @@
         <label class="f">Tarih<input id="gd-tarih" type="date"></label>
         <label class="f">Tür<select id="gd-tur"></select></label>
         <label class="f">Tutar (₺)<input id="gd-tutar" type="number" min="0" step="0.01"></label>
+        <label class="f">Ödeme hesabı (isteğe bağlı)<select id="gd-hesap"><option value="">Kasadan düşme</option></select></label>
         <label class="f" id="gd-kisiKutu">Personel (maaş için)<input id="gd-kisi" list="personelAdlari" autocomplete="off"></label>
         <label class="f" style="grid-column:1/-1">Açıklama<input id="gd-aciklama" autocomplete="off" placeholder="Örn. Ekim maaşı, depo kirası, parça alımı"></label>
       </div>
@@ -312,6 +339,7 @@
       </table>
     </div>
   </div>
+  </div>
 </section>
 
 <!-- KAR -->
@@ -330,6 +358,12 @@
       <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="ayKdvAcik"> KDV farkını kârdan düş (fiyatlar KDV dahil)</label>
     </div>
     <p class="sub" style="margin-top:8px">Kargo ve paketleme yalnızca pazaryeri siparişlerinde düşülür. KDV hesabı satış KDV'si ile alış KDV'si farkına dayanan yaklaşık bir değerdir; muhasebecinizle doğrulayın.</p>
+  </div>
+
+  <div class="card">
+    <div class="head"><div><h2>Pazaryeri karşılaştırma</h2><p class="sub">Aşağıdaki hesaplayıcıda seçili ürün, fiyat ve adet için tüm kanalları yan yana gösterir. Hangi kanalda ne kadar kaldığını ve hedef marj için gereken fiyatı görün.</p></div>
+      <label class="f">Hedef marj (%)<input type="number" id="pkMarj" min="0" max="90" step="1" value="20" style="width:100px"></label></div>
+    <div class="tw" id="pkTablo"></div>
   </div>
 
   <div class="grid2">
@@ -490,6 +524,8 @@
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="/assets/ortak.js"></script>
+<script src="/assets/finans.js"></script>
+<script src="/assets/siparis.js"></script>
 <script>
 (function(){
 'use strict';
@@ -503,7 +539,7 @@ const KANALLAR=[
 const kanalAd=id=>(KANALLAR.find(k=>k.id===id)||{ad:id}).ad;
 const AYLAR=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const GIDER={maas:'Maaş',kira:'Kira',fatura:'Fatura (elektrik, su, internet)',yakit:'Yakıt / araç',vergi:'Vergi / SGK',reklam:'Reklam',diger:'Diğer gider',stok_alim:'Stok / parça alımı'};
-const HAREKET_TUR={sayim:'Sayım',is:'İş parçası',duzeltme:'Düzeltme'};
+const HAREKET_TUR={sayim:'Sayım',is:'İş parçası',duzeltme:'Düzeltme',fatura:'Fatura',siparis:'Sipariş'};
 const ALAN={
   barkod:{ad:'Barkod',zorunlu:true,esv:['barkod','barcode','ean','gtin','urunkodu','stokkodu','sku','kod']},
   ad:{ad:'Ürün adı',zorunlu:true,esv:['urunadi','ad','urun','aciklama','name','isim','malzeme','urunismi']},
@@ -539,7 +575,7 @@ async function girisGoster(mesaj){
   }catch(e){u.hidden=false;u.textContent=e.message;}
 }
 function cikis(){
-  api.token(null); ME=null; URUNLER=[]; JOBS=[]; USERS=[]; satis.sifirla();
+  api.token(null); ME=null; URUNLER=[]; JOBS=[]; USERS=[]; satis.sifirla(); if(window.FIN) FIN.sifirla();
   girisGoster(); toast('Çıkış yapıldı');
 }
 async function girisYap(e){
@@ -563,7 +599,7 @@ async function baslat(){
   $('#giris').hidden=true; $('#uygulama').hidden=false;
   $('#kullaniciBilgi').innerHTML=`<strong>${esc(ME.name)}</strong> <span class="pill good">Yönetici</span>`;
   const h=(location.hash||'').replace('#','');
-  git(['ozet','stok','satis','isler','muhasebe','kar','pazaryeri','personel'].includes(h)?h:'ozet');
+  git(['ozet','stok','satis','siparis','isler','muhasebe','kar','pazaryeri','personel'].includes(h)?h:'ozet');
 }
 async function verileriYukle(){
   const [u,a,j,k]=await Promise.all([api('products'),api('settings'),api('jobs'),api('users')]);
@@ -611,8 +647,9 @@ function git(tab){
   if(tab==='ozet') renderOzet();
   if(tab==='stok') renderStok();
   if(tab==='satis') satis.render();
+  if(tab==='siparis') SIP.render();
   if(tab==='isler') renderIsler();
-  if(tab==='muhasebe') renderMuhasebe();
+  if(tab==='muhasebe') muGit(muSub);
   if(tab==='kar') renderKar();
   if(tab==='pazaryeri') renderPazar();
   if(tab==='personel') renderPersonel();
@@ -622,21 +659,31 @@ function git(tab){
 const ayBasiMs=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).getTime();};
 const gunBasiMs=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();};
 async function renderOzet(){
-  const acik=JOBS.filter(acikMi), gec=acik.filter(gecikmis).length, acil=acik.filter(j=>j.oncelik==='acil').length;
+  let d=null;
+  try{d=await api('accounting/dashboard');}catch(e){toast(e.message,'bad');}
+  const acik=JOBS.filter(acikMi);
   const kritik=URUNLER.filter(u=>u.stok<=u.min);
-  let satislar=[];
-  try{satislar=await api(`sales?from=${encodeURIComponent(new Date(ayBasiMs()).toISOString())}&to=${encodeURIComponent(new Date(Date.now()+864e5).toISOString())}`);}catch(e){}
-  const bugunCiro=satislar.filter(s=>new Date(s.t).getTime()>=gunBasiMs()).reduce((a,s)=>a+s.ciro,0);
-  const ayKar=satislar.reduce((a,s)=>a+satisNet(s),0);
-  const ayIs=JOBS.filter(j=>j.durum==='tamam'&&j.bitis&&new Date(j.bitis).getTime()>=ayBasiMs()).reduce((a,j)=>a+j.ozet.kar,0);
-  $('#ozetStat').innerHTML=
-    `<div class="stat"><b>${acik.length}</b><span>Açık iş</span></div>`+
-    `<div class="stat"><b class="${gec?'neg':''}">${gec}</b><span>Süresi geçmiş iş</span></div>`+
-    `<div class="stat"><b class="${acil?'neg':''}">${acil}</b><span>Acil iş</span></div>`+
-    `<div class="stat"><b class="${kritik.length?'neg':''}">${kritik.length}</b><span>Kritik stok</span></div>`+
-    `<div class="stat"><b>${fmt(bugunCiro)}</b><span>Bugünkü satış cirosu</span></div>`+
-    `<div class="stat"><b class="${ayKar<0?'neg':'pos'}">${fmt(ayKar)}</b><span>Bu ay ürün satışı net kârı</span></div>`+
-    `<div class="stat"><b class="${ayIs<0?'neg':'pos'}">${fmt(ayIs)}</b><span>Bu ay tamamlanan işlerin kârı</span></div>`;
+  if(d){
+    const u=d.uyari;
+    $('#ozetKpi').innerHTML=
+      `<div class="kpi"><span class="l">Bugünkü ciro</span><b>${fmt(d.bugun.ciro)}</b><span class="s">Satış ${fmt(d.bugun.satis)} · Fatura ${fmt(d.bugun.fatura)} · İş ${fmt(d.bugun.is)}</span></div>`+
+      `<div class="kpi k2"><span class="l">Bu ay net kâr</span><b class="${d.ay.net<0?'neg':'pos'}">${fmt(d.ay.net)}</b><span class="s">Gelir ${fmt(d.ay.gelir)} · Gider ${fmt(d.ay.gider)}</span></div>`+
+      `<div class="kpi k3"><span class="l">Servis cirosu (bu ay)</span><b>${fmt(d.ay.servis)}</b><span class="s">${d.ay.servisAdet} iş tamamlandı</span></div>`+
+      `<div class="kpi k4"><span class="l">E-ticaret geliri (bu ay)</span><b>${fmt(d.ay.eticaret)}</b><span class="s">${d.ay.eticaretAdet} sipariş · net kâr ${fmt(d.ay.eticaretNet)}</span></div>`;
+    const al=(go,l,n,sub,ton)=>`<button class="al${ton?' '+ton:''}" data-go="${go}"><span class="l">${l}</span><b>${n}</b><span class="s">${sub}</span></button>`;
+    $('#ozetUyari').innerHTML=
+      al('isler','Bekleyen iş',u.bekleyenIs,`${u.devamIs} iş devam ediyor`,u.bekleyenIs?'warn':'ok')+
+      al('siparis','Bekleyen sipariş',u.bekleyenSiparis,u.bekleyenSiparis?fmt(u.bekleyenSiparisTutar):`${u.kargodaSiparis} sipariş kargoda`,u.bekleyenSiparis?'warn':'ok')+
+      al('isler','Acil iş',u.acilIs,'Öncelikli işler',u.acilIs?'bad':'ok')+
+      al('isler','Süresi geçen iş',u.gecikenIs,'Termini geçmiş',u.gecikenIs?'bad':'ok')+
+      al('stok','Kritik stok',u.kritikStok,`${u.tukenen} ürün tükendi`,u.kritikStok?'bad':'ok')+
+      al('muhasebe:cari','Geciken müşteri ödemesi',u.gecikenTahsilat.adet,fmt(u.gecikenTahsilat.tutar),u.gecikenTahsilat.adet?'bad':'ok')+
+      al('muhasebe:cari','Geciken ödeme',u.gecikenOdeme.adet,fmt(u.gecikenOdeme.tutar),u.gecikenOdeme.adet?'bad':'ok')+
+      al('muhasebe:cari','Toplam alacak',fmt(u.toplamAlacak),`Borcumuz: ${fmt(u.toplamBorc)}`,'');
+    const gl=(l)=>l.length?l.slice(0,6).map(x=>`<tr><td>${esc(x.cariAd)}</td><td class="mono">${esc(x.no)}</td><td class="num"><span class="pill bad">${x.gun} gün</span></td><td class="num">${fmt(x.kalan)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">Geciken kayıt yok.</td></tr>';
+    $('#ozetGecikenT').innerHTML=gl(u.gecikenTahsilat.liste);
+    $('#ozetGecikenO').innerHTML=gl(u.gecikenOdeme.liste);
+  }
   const dikkat=acik.filter(j=>j.oncelik==='acil'||gecikmis(j)).sort((a,b)=>(a.termin||'9999').localeCompare(b.termin||'9999')).slice(0,8);
   $('#ozetIsler').innerHTML=dikkat.length?dikkat.map(j=>
     `<tr><td><a href="#isler" data-act="is-ac" data-id="${esc(j.id)}">#${j.no} · ${esc(j.baslik)}</a> ${oncelikPill(j.oncelik)}</td><td>${esc(j.atananAd||'Atanmadı')}</td><td>${j.termin?tarih(j.termin):'-'}</td><td>${durumPill(j.durum)}</td></tr>`
@@ -929,6 +976,7 @@ async function renderMuhasebe(){
   $('#gd-tur').innerHTML=Object.keys(GIDER).map(k=>`<option value="${k}">${esc(GIDER[k])}</option>`).join('');
   $('#personelAdlari').innerHTML=USERS.filter(u=>u.active).map(u=>`<option value="${esc(u.name)}">`).join('');
   if(!$('#gd-tarih').value) $('#gd-tarih').value=bugun();
+  try{const hs=await api('hesaplar');const secili=$('#gd-hesap').value;$('#gd-hesap').innerHTML='<option value="">Hesaba işleme</option>'+hs.filter(h=>h.aktif).map(h=>`<option value="${esc(h.id)}">${esc(h.ad)}</option>`).join('');$('#gd-hesap').value=secili;}catch(e){}
   gdKisiGoster();
   const ay=muAnahtar();
   let h,liste,yil;
@@ -943,7 +991,7 @@ async function renderMuhasebe(){
     `<div class="stat"><b>${h.adet.is}</b><span>Tamamlanan iş</span></div>`;
   const genelSatir=Object.keys(g.genel).map(k=>satir('&nbsp;&nbsp;'+esc(GIDER[k]||k),g.genel[k])).join('');
   $('#muTablo').innerHTML=
-    satir('Gelir: ürün satışları',h.gelir.satis)+satir('Gelir: tamamlanan işler',h.gelir.is)+satir('Toplam gelir',h.gelir.toplam,1)+
+    satir('Gelir: ürün satışları',h.gelir.satis)+(h.gelir.fatura?satir('Gelir: satış faturaları (KDV hariç)',h.gelir.fatura):'')+satir('Gelir: tamamlanan işler',h.gelir.is)+satir('Toplam gelir',h.gelir.toplam,1)+
     satir('Gider: satılan ürünlerin alış maliyeti',g.urun)+
     (g.komisyon?satir('Gider: pazaryeri komisyonu, kargo, paketleme',g.komisyon):'')+
     (g.kdv?satir('Gider: KDV farkı',g.kdv):'')+
@@ -969,7 +1017,7 @@ function gdKisiGoster(){ $('#gd-kisiKutu').hidden=$('#gd-tur').value!=='maas'; }
 async function giderEkle(){
   const tutar=parseNum($('#gd-tutar').value);
   try{
-    await api('accounting/expenses',{method:'POST',body:{tarih:$('#gd-tarih').value,tur:$('#gd-tur').value,tutar:isNaN(tutar)?0:tutar,aciklama:$('#gd-aciklama').value,kisi:$('#gd-tur').value==='maas'?$('#gd-kisi').value:''}});
+    await api('accounting/expenses',{method:'POST',body:{tarih:$('#gd-tarih').value,hesap:$('#gd-hesap').value||undefined,tur:$('#gd-tur').value,tutar:isNaN(tutar)?0:tutar,aciklama:$('#gd-aciklama').value,kisi:$('#gd-tur').value==='maas'?$('#gd-kisi').value:''}});
     $('#gd-tutar').value='';$('#gd-aciklama').value='';$('#gd-kisi').value='';
     toast('Gider eklendi');
     const ay=$('#gd-tarih').value;
@@ -994,7 +1042,27 @@ function fiyatiDoldur(){
   if(K.tip!=='ozel') $('#karFiyat').value=K.tip==='toptan'?u.toptan:u.perakende;
   $('#karTip').value=K.tip;
 }
+function pazarKarsilastir(){
+  const u=bul(K.urun), kutu=$('#pkTablo'); if(!kutu) return;
+  if(!u){kutu.innerHTML='<p class="muted">Önce stok yükleyin.</p>';return;}
+  const fiyat=Math.max(0,parseNum($('#karFiyat').value)||0);
+  const adet=Math.max(1,Math.round(parseNum($('#karAdet').value)||1));
+  const hedef=Math.min(90,Math.max(0,parseNum($('#pkMarj').value)||0))/100;
+  const q=S.ayar.kdvAcik?(S.ayar.kdv/100)/(1+S.ayar.kdv/100):0;
+  const satirlar=KANALLAR.map(k=>{
+    const h=hesap(u.alis,fiyat,adet,k.id), kr=(S.kom[k.id]||0)/100, ek=k.id!=='magaza'?(S.ayar.kargo+S.ayar.paket):0;
+    const bPayda=1-kr-q, bFiyat=bPayda>0?(u.alis*(1-q)+ek/adet)/bPayda:NaN;
+    const oPayda=1-kr-q-hedef, oFiyat=oPayda>0?(u.alis*(1-q)+ek/adet)/oPayda:NaN;
+    return {k,h,kr,bFiyat,oFiyat};
+  });
+  const enIyi=satirlar.reduce((m,x)=>x.h.kar>m.h.kar?x:m,satirlar[0]);
+  const tl=v=>isFinite(v)?fmt(v):'-';
+  kutu.innerHTML=`<table><thead><tr><th>Kanal</th><th class="num">Komisyon</th><th class="num">Kargo + paket</th><th class="num">KDV farkı</th><th class="num">Net kâr</th><th class="num">Marj</th><th class="num">Başabaş fiyat</th><th class="num">Hedef marj için fiyat</th></tr></thead><tbody>`+
+    satirlar.map(x=>`<tr${x===enIyi?' style="background:var(--good-bg,#e8f6ee)"':''}><td><strong>${esc(x.k.ad)}</strong>${x===enIyi?' <span class="pill good">En kârlı</span>':''}</td><td class="num">%${(x.kr*100).toFixed(1).replace('.0','')} · ${fmt(x.h.kom)}</td><td class="num">${fmt(x.h.ek)}</td><td class="num">${fmt(x.h.kdv)}</td><td class="num"><strong class="${x.h.kar<0?'neg':'pos'}">${fmt(x.h.kar)}</strong></td><td class="num"><span class="pill ${marjSinif(x.h.marj)}">${pct(x.h.marj)}</span></td><td class="num">${tl(x.bFiyat)}</td><td class="num">${tl(x.oFiyat)}</td></tr>`).join('')+
+    `</tbody></table><p class="sub" style="margin-top:8px">${esc(u.ad)} · ${adet} adet · satış fiyatı ${fmt(fiyat)} (birim). Başabaş fiyat: kâr sıfır olan en düşük birim fiyat.</p>`;
+}
 function karGuncelle(){
+  try{pazarKarsilastir();}catch(e){}
   const u=bul(K.urun);
   if(!u){
     $('#hesapSonuc').innerHTML='<p class="muted">Hesaplamak için önce stok yükleyin.</p>';
@@ -1130,8 +1198,22 @@ async function personelIslem(fn,ok){
   try{await fn(); toast(ok); await renderPersonel();}catch(e){toast(e.message,'bad'); renderPersonel();}
 }
 
+/* ---------- finans köprüsü ---------- */
+window.AD={api,urunler:()=>URUNLER,urunleriYenile,muGit:h=>{git('muhasebe');muGit(h);}};
+let muSub='gelir';
+function muGit(h){
+  muSub=h;
+  $$('#muNav [data-musub]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.musub===h)));
+  $('#mu-gelir').hidden=h!=='gelir'; $('#mu-fin').hidden=h==='gelir';
+  if(h==='gelir') renderMuhasebe(); else FIN.render(h);
+}
+
 /* ---------- olaylar ---------- */
 document.addEventListener('click',async e=>{
+  const go=e.target.closest('[data-go]');
+  if(go){const [t,alt]=go.dataset.go.split(':');git(t);if(alt)muGit(alt);return;}
+  const ms=e.target.closest('[data-musub]');
+  if(ms){muGit(ms.dataset.musub);return;}
   const tab=e.target.closest('[data-tab]');
   if(tab){git(tab.dataset.tab);return;}
   const a=e.target.closest('[data-act]'); if(!a) return;
@@ -1225,7 +1307,7 @@ document.addEventListener('input',e=>{
   else if(t.id==='ayPaket'){S.ayar.paket=Math.max(0,parseNum(t.value)||0);ayarKaydet();karGuncelle();karTablo();rapor();}
   else if(t.id==='ayKdv'){S.ayar.kdv=Math.min(100,Math.max(0,parseNum(t.value)||0));ayarKaydet();karGuncelle();karTablo();rapor();}
   else if(t.id==='karFiyat'){K.tip='ozel';$('#karTip').value='ozel';karGuncelle();}
-  else if(t.id==='karAdet') karGuncelle();
+  else if(t.id==='karAdet'||t.id==='pkMarj') karGuncelle();
   else if(t.dataset.kom){S.kom[t.dataset.kom]=Math.min(100,Math.max(0,parseNum(t.value)||0));ayarKaydet();}
 });
 document.addEventListener('change',async e=>{
